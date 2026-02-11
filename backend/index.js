@@ -28,10 +28,15 @@ const upload = multer({
 
 // Nodemailer transporter configuration
 const transporter = nodemailer.createTransport({
-    service: 'gmail', // You can use other services or direct SMTP
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // use TLS
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
     }
 });
 
