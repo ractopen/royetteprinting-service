@@ -120,6 +120,7 @@
 
             <button type="submit">Send for Printing</button>
         </form>
+        <button id="testEmailBtn" type="button" style="background-color: #6c757d; margin-top: 10px;">Test Email Connection</button>
         <div id="message" style="margin-top: 20px; color: red;"></div>
     </div>
 
@@ -129,6 +130,7 @@
             const pdfFile = document.getElementById('pdfFile');
             const recipientNameInput = document.getElementById('recipientName');
             const messageDiv = document.getElementById('message');
+            const testEmailBtn = document.getElementById('testEmailBtn'); // Get the new button
             const backendUrl = 'https://fastapi-backend-royetteprinting-service.onrender.com'; // Base URL for your FastAPI backend
 
             // Function to check backend connection
@@ -154,6 +156,41 @@
 
             // Check connection on page load
             checkBackendConnection();
+
+            // Event listener for the new Test Email button
+            testEmailBtn.addEventListener('click', async () => {
+                messageDiv.style.color = 'blue';
+                messageDiv.textContent = 'Attempting to send a test email...';
+
+                const isBackendConnected = await checkBackendConnection();
+                if (!isBackendConnected) {
+                    messageDiv.style.color = 'red';
+                    messageDiv.textContent = 'Error: Backend is not available. Cannot send test email.';
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${backendUrl}/test-email`);
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        messageDiv.style.color = 'green';
+                        messageDiv.textContent = `Test Email Success: ${data.message}`;
+                    } else {
+                        messageDiv.style.color = 'red';
+                        const errorMessage = data.detail || data.message || `Test Email Failed: ${response.status} ${response.statusText}`;
+                        messageDiv.textContent = `Test Email Failed: ${errorMessage}`;
+                    }
+                } catch (error) {
+                    console.error('Test Email Network Error:', error);
+                    messageDiv.style.color = 'red';
+                    if (error instanceof TypeError && error.message.includes('Network request failed')) {
+                        messageDiv.textContent = 'Test Email Failed: Network Error. Please check your internet connection or try again later.';
+                    } else {
+                        messageDiv.textContent = `Test Email Failed: An unexpected error occurred: ${error.message}`;
+                    }
+                }
+            });
 
             printingForm.addEventListener('submit', async (event) => {
                 event.preventDefault(); // Prevent default form submission
@@ -224,5 +261,4 @@
             });
         });
     </script>
-</body>
 </html>

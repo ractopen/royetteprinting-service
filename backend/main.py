@@ -27,6 +27,42 @@ app.add_middleware(
 async def read_root():
     return {"message": "FastAPI backend for Royette Printing Service is running!"}
 
+@app.get("/test-email")
+async def test_email():
+    sender_email = os.getenv("EMAIL_USER")
+    sender_password = os.getenv("EMAIL_PASS")
+    receiver_email = "ractenopen@gmail.com" # Your target email for testing
+
+    if not sender_email or not sender_password:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": "Email sender credentials (EMAIL_USER, EMAIL_PASS) are not configured."}
+        )
+
+    test_msg = EmailMessage()
+    test_msg["From"] = sender_email
+    test_msg["To"] = receiver_email
+    test_msg["Subject"] = "Test Email from FastAPI Backend"
+    test_msg.set_content("This is a test email sent from the FastAPI backend.")
+
+    try:
+        await aiosmtplib.send(
+            test_msg,
+            hostname="smtp.gmail.com",
+            port=587,
+            start_tls=True,
+            username=sender_email,
+            password=sender_password,
+            timeout=30
+        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Test email sent successfully!"})
+    except Exception as e:
+        print(f"Error sending test email: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": f"Failed to send test email: {e}"}
+        )
+
 @app.post("/upload")
 async def upload_pdf(
     pdf_file: UploadFile,
