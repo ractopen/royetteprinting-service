@@ -162,7 +162,7 @@
                 formData.append('recipientName', recipientName);
 
                 try {
-                    const response = await fetch('https://royetteprinting-service-backend.onrender.com/upload', { // This endpoint will be handled by our Node.js backend
+                    const response = await fetch('https://royetteprinting-service-backend.onrender.com/upload', { // This endpoint will be handled by our FastAPI backend
                         method: 'POST',
                         body: formData
                     });
