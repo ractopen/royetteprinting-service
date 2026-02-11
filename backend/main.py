@@ -29,41 +29,38 @@ async def read_root():
 
 @app.get("/test-email")
 async def test_email():
-    mailgun_smtp_login = os.getenv("MAILGUN_SMTP_LOGIN")
-    mailgun_smtp_password = os.getenv("MAILGUN_SMTP_PASSWORD")
-    mailgun_smtp_host = os.getenv("MAILGUN_SMTP_HOST", "smtp.mailgun.org")
-    mailgun_smtp_port = int(os.getenv("MAILGUN_SMTP_PORT", 587))
-    from_email = os.getenv("FROM_EMAIL")
+    sender_email = os.getenv("EMAIL_USER")
+    sender_password = os.getenv("EMAIL_PASS")
     receiver_email = "ractenopen@gmail.com" # Your target email for testing
 
-    if not all([mailgun_smtp_login, mailgun_smtp_password, from_email]):
+    if not sender_email or not sender_password:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": "Mailgun SMTP credentials (MAILGUN_SMTP_LOGIN, MAILGUN_SMTP_PASSWORD, FROM_EMAIL) are not configured."}
+            content={"detail": "Email sender credentials (EMAIL_USER, EMAIL_PASS) are not configured."}
         )
 
     test_msg = EmailMessage()
-    test_msg["From"] = from_email
+    test_msg["From"] = sender_email
     test_msg["To"] = receiver_email
-    test_msg["Subject"] = "Test Email from FastAPI Backend (Mailgun)"
-    test_msg.set_content("This is a test email sent from the FastAPI backend using Mailgun.")
+    test_msg["Subject"] = "Test Email from FastAPI Backend (Gmail SMTP)"
+    test_msg.set_content("This is a test email sent from the FastAPI backend using Gmail SMTP.")
 
     try:
         await aiosmtplib.send(
             test_msg,
-            hostname=mailgun_smtp_host,
-            port=mailgun_smtp_port,
-            start_tls=True, # Use STARTTLS for port 587
-            username=mailgun_smtp_login,
-            password=mailgun_smtp_password,
+            hostname="smtp.gmail.com",
+            port=587,
+            start_tls=True,
+            username=sender_email,
+            password=sender_password,
             timeout=30
         )
-        return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Test email sent successfully via Mailgun!"})
+        return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Test email sent successfully via Gmail SMTP!"})
     except Exception as e:
-        print(f"Error sending test email via Mailgun: {e}")
+        print(f"Error sending test email via Gmail SMTP: {e}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": f"Failed to send test email via Mailgun: {e}"}
+            content={"detail": f"Failed to send test email via Gmail SMTP: {e}"}
         )
 
 @app.post("/upload")
@@ -89,21 +86,18 @@ async def upload_pdf(
     pdf_content = await pdf_file.read()
 
     # --- Email Sending Logic ---
-    mailgun_smtp_login = os.getenv("MAILGUN_SMTP_LOGIN")
-    mailgun_smtp_password = os.getenv("MAILGUN_SMTP_PASSWORD")
-    mailgun_smtp_host = os.getenv("MAILGUN_SMTP_HOST", "smtp.mailgun.org")
-    mailgun_smtp_port = int(os.getenv("MAILGUN_SMTP_PORT", 587))
-    from_email = os.getenv("FROM_EMAIL")
+    sender_email = os.getenv("EMAIL_USER")
+    sender_password = os.getenv("EMAIL_PASS")
     receiver_email = "ractenopen@gmail.com" # Your target email
 
-    if not all([mailgun_smtp_login, mailgun_smtp_password, from_email]):
+    if not sender_email or not sender_password:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Mailgun SMTP credentials (MAILGUN_SMTP_LOGIN, MAILGUN_SMTP_PASSWORD, FROM_EMAIL) are not configured."
+            detail="Email sender credentials (EMAIL_USER, EMAIL_PASS) are not configured."
         )
 
     msg = EmailMessage()
-    msg["From"] = from_email
+    msg["From"] = sender_email
     msg["To"] = receiver_email
     msg["Subject"] = f"New Print Request from {recipient_name}"
     msg.set_content(f"""
@@ -122,19 +116,19 @@ async def upload_pdf(
     try:
         await aiosmtplib.send(
             msg,
-            hostname=mailgun_smtp_host,
-            port=mailgun_smtp_port,
-            start_tls=True, # Use STARTTLS for port 587
-            username=mailgun_smtp_login,
-            password=mailgun_smtp_password,
+            hostname="smtp.gmail.com",
+            port=587,
+            start_tls=True,
+            username=sender_email,
+            password=sender_password,
             timeout=30 # Set a timeout for email sending
         )
         return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "PDF uploaded and email sent successfully!"})
     except Exception as e:
-        print(f"Error sending email via Mailgun: {e}")
+        print(f"Error sending email via Gmail SMTP: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send email via Mailgun: {e}"
+            detail=f"Failed to send email via Gmail SMTP: {e}"
         )
 
 if __name__ == "__main__":
