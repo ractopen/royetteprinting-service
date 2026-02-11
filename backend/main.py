@@ -4,9 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
 from dotenv import load_dotenv
-import mimetypes
-import aiosmtplib
-from email.message import EmailMessage
+import base64 # Import base64 for encoding PDF content
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
 
 # Load environment variables from .env file
 load_dotenv()
@@ -29,38 +29,47 @@ async def read_root():
 
 @app.get("/test-email")
 async def test_email():
-    sender_email = os.getenv("EMAIL_USER")
-    sender_password = os.getenv("EMAIL_PASS")
-    receiver_email = "ractenopen@gmail.com" # Your target email for testing
+    sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+    from_email = os.getenv("FROM_EMAIL", "your_sendgrid_verified_email@example.com") # Use a verified sender email in SendGrid
+    to_email = "ractenopen@gmail.com" # Your target email for testing
 
-    if not sender_email or not sender_password:
+    if not sendgrid_api_key:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": "Email sender credentials (EMAIL_USER, EMAIL_PASS) are not configured."}
+            content={"detail": "SendGrid API Key is not configured."}
+        )
+    
+    # Ensure FROM_EMAIL is set and verified in SendGrid
+    if from_email == "your_sendgrid_verified_email@example.com":
+         return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": "FROM_EMAIL is not configured or is not a verified sender in SendGrid. Please check .env and SendGrid settings."}
         )
 
-    test_msg = EmailMessage()
-    test_msg["From"] = sender_email
-    test_msg["To"] = receiver_email
-    test_msg["Subject"] = "Test Email from FastAPI Backend (Gmail SMTP)"
-    test_msg.set_content("This is a test email sent from the FastAPI backend using Gmail SMTP.")
+    message = Mail(
+        from_email=from_email,
+        to_emails=to_email,
+        subject="Test Email from FastAPI Backend (SendGrid)",
+        html_content="This is a test email sent from the FastAPI backend using SendGrid."
+    )
 
     try:
-        await aiosmtplib.send(
-            test_msg,
-            hostname="smtp.gmail.com",
-            port=587,
-            start_tls=True,
-            username=sender_email,
-            password=sender_password,
-            timeout=30
-        )
-        return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Test email sent successfully via Gmail SMTP!"})
+        sendgrid_client = SendGridAPIClient(sendgrid_api_key)
+        response = sendgrid_client.send(message)
+
+        if response.status_code == 202:
+            return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Test email sent successfully via SendGrid!"})
+        else:
+            print(f"SendGrid Error: Status Code: {response.status_code}, Body: {response.body}, Headers: {response.headers}")
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"detail": f"Failed to send test email via SendGrid. Status: {response.status_code}, Response: {response.body.decode()}"}
+            )
     except Exception as e:
-        print(f"Error sending test email via Gmail SMTP: {e}")
+        print(f"Error sending test email with SendGrid: {e}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": f"Failed to send test email via Gmail SMTP: {e}"}
+            content={"detail": f"Failed to send test email with SendGrid: {e}"}
         )
 
 @app.post("/upload")
@@ -84,51 +93,64 @@ async def upload_pdf(
 
     # Read the PDF content
     pdf_content = await pdf_file.read()
+    encoded_pdf = base64.b64encode(pdf_content).decode() # Base64 encode for SendGrid attachment
 
     # --- Email Sending Logic ---
-    sender_email = os.getenv("EMAIL_USER")
-    sender_password = os.getenv("EMAIL_PASS")
-    receiver_email = "ractenopen@gmail.com" # Your target email
+    sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+    from_email = os.getenv("FROM_EMAIL", "your_sendgrid_verified_email@example.com") # Use a verified sender email in SendGrid
+    to_email = "ractenopen@gmail.com" # Your target email
 
-    if not sender_email or not sender_password:
+    if not sendgrid_api_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Email sender credentials (EMAIL_USER, EMAIL_PASS) are not configured."
+            detail="SendGrid API Key is not configured."
+        )
+    
+    # Ensure FROM_EMAIL is set and verified in SendGrid
+    if from_email == "your_sendgrid_verified_email@example.com":
+         raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="FROM_EMAIL is not configured or is not a verified sender in SendGrid. Please check .env and SendGrid settings."
         )
 
-    msg = EmailMessage()
-    msg["From"] = sender_email
-    msg["To"] = receiver_email
-    msg["Subject"] = f"New Print Request from {recipient_name}"
-    msg.set_content(f"""
-        Hello,
 
-        A new print request has been submitted.
-        Recipient Name: {recipient_name}
+    message = Mail(
+        from_email=from_email,
+        to_emails=to_email,
+        subject=f"New Print Request from {recipient_name}",
+        html_content=f"""
+            <p>Hello,</p>
+            <p>A new print request has been submitted.</p>
+            <p><strong>Recipient Name:</strong> {recipient_name}</p>
+            <p>Please find the PDF file attached.</p>
+        """
+    )
 
-        Please find the PDF file attached.
-    """)
-
-    # Attach the PDF file
-    maintype, subtype = "application", "pdf"
-    msg.add_attachment(pdf_content, maintype=maintype, subtype=subtype, filename=pdf_file.filename)
+    attachedFile = Attachment(
+        FileContent(encoded_pdf),
+        FileName(pdf_file.filename),
+        FileType(pdf_file.content_type),
+        Disposition('attachment')
+    )
+    message.attachment = attachedFile
 
     try:
-        await aiosmtplib.send(
-            msg,
-            hostname="smtp.gmail.com",
-            port=587,
-            start_tls=True,
-            username=sender_email,
-            password=sender_password,
-            timeout=30 # Set a timeout for email sending
-        )
-        return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "PDF uploaded and email sent successfully!"})
+        sendgrid_client = SendGridAPIClient(sendgrid_api_key)
+        response = sendgrid_client.send(message)
+
+        if response.status_code == 202:
+            return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "PDF uploaded and email sent successfully via SendGrid!"})
+        else:
+            print(f"SendGrid Error: Status Code: {response.status_code}, Body: {response.body}, Headers: {response.headers}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to send email via SendGrid. Status: {response.status_code}, Response: {response.body.decode()}"
+            )
     except Exception as e:
-        print(f"Error sending email via Gmail SMTP: {e}")
+        print(f"Error sending email with SendGrid: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send email via Gmail SMTP: {e}"
+            detail=f"Failed to send email with SendGrid: {e}"
         )
 
 if __name__ == "__main__":
