@@ -39,8 +39,8 @@ async def upload_pdf(
         )
 
     # Server-side validation for PDF file type
-    if not pdf_file.filename.lower().endswith(".pdf") or 
-       pdf_file.content_type != "application/pdf":
+    if (not pdf_file.filename.lower().endswith(".pdf") or
+            pdf_file.content_type != "application/pdf"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only PDF files are allowed."
