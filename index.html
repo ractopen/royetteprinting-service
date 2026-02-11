@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Royette Printing Service</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        h1 {
+            color: #0056b3;
+        }
+        h2 {
+            color: #007bff;
+        }
+        .price-colored {
+            color: green;
+            font-weight: bold;
+        }
+        .price-bw {
+            color: gray;
+            font-weight: bold;
+        }
+        .recipient-info {
+            margin-top: 30px;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <h1>Royette Printing Service</h1>
+    <h2>Just send, fill, done! will be printed</h2>
+    <p>Amount: <span class="price-colored">7 pesos</span> (colored) and <span class="price-bw">3 pesos</span> (B&W - discounted)</p>
+    <p class="recipient-info">Your name of recipient (the one who wants to print)</p>
+    <div class="form-container">
+        <h3>Submit your PDF for printing:</h3>
+        <form id="printingForm" enctype="multipart/form-data">
+            <label for="recipientName">Recipient Name:</label><br>
+            <input type="text" id="recipientName" name="recipientName" required><br><br>
+
+            <label for="pdfFile">Upload PDF:</label><br>
+            <input type="file" id="pdfFile" name="pdfFile" accept=".pdf" required><br><br>
+
+            <button type="submit">Send for Printing</button>
+        </form>
+        <div id="message" style="margin-top: 20px; color: red;"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const printingForm = document.getElementById('printingForm');
+            const pdfFile = document.getElementById('pdfFile');
+            const recipientNameInput = document.getElementById('recipientName');
+            const messageDiv = document.getElementById('message');
+
+            printingForm.addEventListener('submit', async (event) => {
+                event.preventDefault(); // Prevent default form submission
+
+                messageDiv.style.color = 'blue';
+                messageDiv.textContent = 'Uploading... Please wait.';
+
+                const file = pdfFile.files[0];
+                const recipientName = recipientNameInput.value;
+
+                if (!recipientName) {
+                    messageDiv.style.color = 'red';
+                    messageDiv.textContent = 'Please enter a recipient name.';
+                    return;
+                }
+
+                if (!file) {
+                    messageDiv.style.color = 'red';
+                    messageDiv.textContent = 'Please select a PDF file.';
+                    return;
+                }
+
+                if (file.type !== 'application/pdf') {
+                    messageDiv.style.color = 'red';
+                    messageDiv.textContent = 'Warning: Only PDF files are accepted. Please select a PDF.';
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('pdfFile', file);
+                formData.append('recipientName', recipientName);
+
+                try {
+                    const response = await fetch('/upload', { // This endpoint will be handled by our Node.js backend
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        messageDiv.style.color = 'green';
+                        messageDiv.textContent = data.message || 'File uploaded and email sent successfully!';
+                        printingForm.reset(); // Clear the form
+                    } else {
+                        messageDiv.style.color = 'red';
+                        messageDiv.textContent = data.message || 'Error uploading file.';
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    messageDiv.style.color = 'red';
+                    messageDiv.textContent = 'An unexpected error occurred. Please try again later.';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
